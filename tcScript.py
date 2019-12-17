@@ -69,15 +69,15 @@ def highres_sweep_setup(vstart,vstop,step):
     # set hold time 0.2sec
     #tc.write('PH0.1')
     # set step delay time 0.15s
-    tc.write('PD0.15')
+    tc.write('PD0.5')
     # set step dV/dt to 0V/s
     tc.write('PV0')
 
 print('setting sweep parameters')
 initialize()
 #continuous_sweep_setup(-100,100,0.1)
-Vstart = -100
-Vstop = 100
+Vstart = 0
+Vstop = 25
 highres_sweep_setup(Vstart,Vstop,0.1)
 print('set')
 #%% sweep
