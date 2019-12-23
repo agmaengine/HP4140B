@@ -198,6 +198,7 @@ class tracer:
             self.savepath = kwargs.get('path',self.savepath)
             self.savepath = _get_system_directory(self.savepath)
             self._iv.to_csv( self.savepath + timestr + '.csv',index=False)
+            print('filename: ' + timestr)
         return self._iv
     
     def get_iv(self):
