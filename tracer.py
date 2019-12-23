@@ -10,24 +10,25 @@ Last edited date:
 """
 import pyvisa
 import datetime
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-import utils
+import numpy as _np
+import matplotlib.pyplot as _plt
+import pandas as _pd
+from utils import get_system_directory as _get_system_directory
 
 class tracer:
-    def __init__(self, address):
+    def __init__(self, address, **kwargs):
         ''' estrablish remote instrument '''
         rm = pyvisa.ResourceManager()
         # GPIB Address
-        self.addr = address
+        self.addr = str(address)
         # Create instrument object GPIB Protocol
-        self.tc = rm.open_resource('GPIB0::'+self.addr+'::INSTR')
+        self._tc = rm.open_resource('GPIB0::'+self.addr+'::INSTR')
         self._vstart = -5
         self._vstop = 5
         self._step = 0.1
         self._delay = 0.5
-        self.savepath = utils.get_system_directory('./')
+        spath = kwargs.get('path','./')
+        self.savepath = _get_system_directory(spath)
         self.i_mode_sweep(self._vstart,self._vstop,self._step,self._delay)
         
     ''' initialize instrument '''
@@ -42,7 +43,7 @@ class tracer:
         set integration time to long
         '''
         print('initialize instruments')
-        self.tc.write('T1L3A1RA1H05I3')
+        self._tc.write('T1L3A1RA1H05I3')
         print('initialized')
     
     '''sweep modes'''
@@ -71,19 +72,19 @@ class tracer:
         self._rcV = rcV
         
         self._initialize()
-        self.tc.write('F2')
+        self._tc.write('F2')
         # set VA to 0V
-        self.tc.write('PA0')
+        self._tc.write('PA0')
         # set VA start value = vstart
-        self.tc.write('PS%.1f'%vstart)
+        self._tc.write('PS%.1f'%vstart)
         # set VA stop value = vstop
-        self.tc.write('PT%.1f'%vstop)
+        self._tc.write('PT%.1f'%vstop)
         # set voltage change step to step
-        self.tc.write('PE%.1f'%step)
+        self._tc.write('PE%.1f'%step)
         # set step dV/dt to rcV
-        self.tc.write('PV%.1f'%rcV)
+        self._tc.write('PV%.1f'%rcV)
         # set step delay time 0V
-        self.tc.write('PD0')
+        self._tc.write('PD0')
         print('The tracer sweep mode is set to IV, \
               voltage starting from %.1f to %.1f with %.1f V step' \
               %(vstart, vstop, step))
@@ -115,19 +116,19 @@ class tracer:
         
         self._initialize()
         # set mode to i mode
-        self.tc.write('F1')
+        self._tc.write('F1')
         # set VA = 0 V
-        self.tc.write('PA0')
+        self._tc.write('PA0')
         # set VA start value = vstart
-        self.tc.write('PS%.1f'%vstart)
+        self._tc.write('PS%.1f'%vstart)
         # set VA stop value = vstop
-        self.tc.write('PT%.1f'%vstop)
+        self._tc.write('PT%.1f'%vstop)
         # set voltage change step to step
-        self.tc.write('PE%.1f'%step)
+        self._tc.write('PE%.1f'%step)
         # set step delay time delay
-        self.tc.write('PD%.1f'%delay)
+        self._tc.write('PD%.1f'%delay)
         # set step dV/dt to 0V/s
-        self.tc.write('PV0')
+        self._tc.write('PV0')
 
         print('The tracer sweep mode is set to I, \
               voltage starting from %.1f to %.1f with %.1f V step' \
@@ -150,46 +151,54 @@ class tracer:
             columns = ['V(V)','I(A)'].
         '''
         
-        I = []
-        V = []
         self.t = datetime.datetime.now()
         timestr = str(self.t.year)+'%02d'%self.t.month+ \
             '%02d'%self.t.day+'_'+'%02d'%self.t.hour+'%02d'%self.t.minute
-        print('collecting data on '+self.t.ctime)
-        self.tc.write('W1')
-        trigger = True
+        print('collecting data on '+self.t.ctime())
+        self._tc.write('W1')
         IV = []
+        I = []
+        V = []
+        trigger = True
         while trigger:
             # read the measurement
             try:
-                IV.append(self.tc.read_bytes(23).decode())
+                IV.append(self._tc.read_bytes(23).decode())
             except:
                 trigger = False
+            
             if IV[-1][0:2] == ' N':
                 im1, im2 = IV[-1].split(',')
                 # split record data 
                 I.append(float(im1[3:]))
                 V.append(float(im2[1:]))
+            
             if V[-1] == float(self._vstop):
                 trigger =False
-            # wait for the device to make the next measurements for 50 ms
-            # time.sleep(0.02)
-            # record data in SI unit
-            # turn I,V to numpy
-            I = np.array(I)
-            V = np.array(V)
-            print('data collected')
-            if plot:
-                print('visualize data')
-                plt.plot(V,I*1e6,'-o')
-                plt.xlabel('Volt (V)')
-                plt.ylabel('Current (uA)')
-                plt.title('I-V characteristics')
-                plt.grid()
-                print('done!')
-            if save:
-                self.savepath = kwargs.get('path',self.savepath)
-                self.savepath = utils.get_system_directory(self.savepath)
-                self.IV = pd.DataFrame(np.array([V,I]).T,columns=['V(V)','I(A)'])
-                self.IV.to_csv( self.savepath + timestr + '.csv',index=False)
-            return self.IV
+        # end while
+        
+        # wait for the device to make the next measurements for 50 ms
+        # time.sleep(0.02)
+        # record data in SI unit
+        # turn I,V to numpy
+        I = _np.array(I)
+        V = _np.array(V)
+        self._iv = _pd.DataFrame(_np.array([V,I]).T,columns=['V(V)','I(A)'])
+        
+        ('data collected')
+        if plot:
+            print('visualize data')
+            _plt.plot(V,I*1e6,'-o')
+            _plt.xlabel('Volt (V)')
+            _plt.ylabel('Current (uA)')
+            _plt.title('I-V characteristics')
+            _plt.grid()
+            print('done!')
+        if save:
+            self.savepath = kwargs.get('path',self.savepath)
+            self.savepath = _get_system_directory(self.savepath)
+            self._iv.to_csv( self.savepath + timestr + '.csv',index=False)
+        return self._iv
+    
+    def get_iv(self):
+        return self._iv
