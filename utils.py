@@ -75,22 +75,34 @@ def load_data(path,namelist,plot=True):
 
     Returns
     -------
-    iv : pandas.DataFrame
-        The dataframe of loaded data
+    iv : list of pandas.DataFrame
+        list of the dataframe of loaded files
 
     '''
     path = get_system_directory(path)
-    iv=[]
-    _plt.figure()
+    iv_list=[]
+    # string input handling
+    if type(namelist) == str:
+        namelist = [namelist]
+    
     for name in namelist:
-        iv.append(_pd.read_csv(path+name+'.csv'))
+        # chek if the name is str
+        if type(name) == str:
+            # extension handling
+            if name.split('.')[-1] == 'csv':
+                name = name.split('.csv')[0]
+            iv_list.append(_pd.read_csv(path+name+'.csv'))
+        else:
+            print('the following input is not string')
+            print(name)
         
     if plot:
-        for df in iv:
+        _plt.figure()
+        for df in iv_list:
             plot_2d_df(df,yfactor=1e6)
             
         _plt.xlabel('V (V)')
         _plt.ylabel('I (uA)')
         _plt.legend(namelist)
         _plt.grid()
-    return iv
+    return iv_list
