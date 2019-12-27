@@ -22,7 +22,10 @@ class langmuir:
         self._prober = prober
         self._probel = probel
         self._Z = Z
-    
+        
+        self._iv_around_vf()
+        
+        
     def _butter_worth_smooth(self,a,n):    
         l = len(a)-n
         inter = _np.zeros(l)
@@ -55,13 +58,24 @@ class langmuir:
 
         return i
             
-    def _get_floating_potential(self,iv):
+    def _get_floating_potential(self):
         # iv is the pandas data frame with column = ['V(V)', 'I(A)']
+        iv = self._iv
         vf = _np.zeros([2,2])
         vf[0,:] = iv[iv.iloc[:,1] < 0].tail(1).to_numpy()
         vf[1,:] = iv[iv.iloc[:,1] > 0].head(1).to_numpy()
         return (vf[0,0]-vf[1,0])/(vf[0,1]-vf[1,1])*(-vf[0,1])+vf[0,0]
     
+    def _estimate_plasma_potential(self):
+        div = self._div
+        v = div[0].to_numpy()
+        di = div[1].to_numpy()
+        index_peaks = _find_peaks_cwt(di, _np.arange(1,5))
+        _plot_2d_df(div,yfactor = 1e6)
+        print(index_peaks)
+        _plt.plot(v[index_peaks],di[index_peaks]*1e6,'or')
+        return (v[index_peaks[0]],di[index_peaks[0]])
+
     def _avg_differential(self,xy):
         x = xy.iloc[:,0].to_numpy()
         y = xy.iloc[:,1].to_numpy()
@@ -79,7 +93,18 @@ class langmuir:
         xscale = x_max - x_min
         yscale = y_max - y_min
         return (xscale , yscale)
-     
+    
+    def _iv_around_vf(self):
+        iv = self._iv
+        try:
+            vf = self._get_floating_potential()
+            iv = iv[ (vf - 10 < iv['V(V)']) & (iv['V(V)']  < vf + 20) ]
+            self._iv = iv
+            #_plot_2d_df(self._iv,scale=True)
+        except:
+            print('cannot find vf')
+        return 0
+    
     '''algorithm 1'''
     def _classical_analysis(self,iv,prober,probel,Z,plot = True):
         '''
@@ -105,12 +130,19 @@ class langmuir:
         e = 1.60217733e-19 #SI C
         # determining the region separators
         ivxs, ivys = self._get_scale(iv)
-        div = self._avg_differential(iv)
-        ddiv = self._avg_differential(div)
+        div = self._div
+        ddiv = self._ddiv
         iv1 = ddiv[0][ddiv[1]/ivys-1e-2 > 0].head(1).index.values
         iv2 = ddiv[0][ddiv[1]==ddiv[1].max()].index.values
         iv1 = int(iv1)+1
         iv2 = int(iv2)+1
+        
+        try:
+            vp = self._estimate_plasma_potential()
+            print(vp)
+        except Exception as e: 
+            print(e)
+            print('cannot estimate vp')
         
         # region separator obtained
         # fit the linear to the first region
@@ -149,7 +181,7 @@ class langmuir:
         delta2, c2 = _np.linalg.lstsq(a.T,ie[iv2+region_offset:],rcond=None)[0]
         ie_3rd_region = delta2*v + c2
         
-        vf = self._get_floating_potential(iv) # V
+        vf = self._get_floating_potential() # V
         
         idx = _np.argwhere(_np.diff(_np.sign(ie_3rd_region - ie_2nd_region))).flatten()
         
@@ -184,9 +216,11 @@ class langmuir:
             # the 1st region
             _plt.plot(v[:iv1],i_1st_region[:iv1]*1e6)
             # the 2nd region
-            _plt.plot(v[iv1:iv2+12],(ie_2nd_region[iv1:iv2+12]+i_1st_region[iv1:iv2+12])*1e6)
+            # find vp and plot only to vp
+            ivp = _np.argwhere(_np.abs(v - vp)<0.1).flatten()[-1]
+            _plt.plot(v[iv1:ivp],(ie_2nd_region[iv1:ivp]+i_1st_region[iv1:ivp])*1e6)
             # the 3rd region
-            _plt.plot(v[iv2-10:],ie_3rd_region[iv2-10:]*1e6)
+            _plt.plot(v[ivp:],ie_3rd_region[ivp:]*1e6)
             #_plt.plot(v_3rd_region[iv2-10:],(ie[iv2-10:]+i_1st_region[iv2-10:])*1e6)
             #_plt.plot(v_3rd_region_1st[iv2-10:],(ie[iv2-10:]+i_1st_region[iv2-10:])*1e6)
             _plt.ylabel('I (uA)')
@@ -228,8 +262,8 @@ class langmuir:
         e = 1.60217733e-19 #SI C
         # determining the region separators
         ivxs, ivys = self._get_scale(iv)
-        div = self._avg_differential(iv)
-        ddiv = self._avg_differential(div)
+        div = self._div
+        ddiv = self._ddiv
         iv1 = ddiv[0][ddiv[1]/ivys-1e-2 > 0].head(1).index.values
         iv2 = ddiv[0][ddiv[1]==ddiv[1].max()].index.values
         iv1 = int(iv1)+1
@@ -349,6 +383,8 @@ class langmuir:
         mutate = kwargs.get('mutate',True)
         if mutate:
             self._iv = intermediate
+            self._div = self._avg_differential(self._iv)
+            self._ddiv = self._avg_differential(self._div)
         
         return intermediate
     
