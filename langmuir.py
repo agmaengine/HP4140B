@@ -12,7 +12,7 @@ from statsmodels.nonparametric.smoothers_lowess import lowess as _lowess
 from scipy import optimize as _optimize
 from utils import plot_2d_df as _plot_2d_df
 from scipy.signal import find_peaks_cwt as _find_peaks_cwt
-
+from scipy.signal import find_peaks as _find_peaks
 
 class langmuir:
     '''cores functions'''
@@ -70,11 +70,14 @@ class langmuir:
         div = self._div
         v = div[0].to_numpy()
         di = div[1].to_numpy()
-        index_peaks = _find_peaks_cwt(di, _np.arange(1,5))
+        # used wavelet width of 30% length of di
+        w = int(len(di)*0.5)
+        index_peaks = _find_peaks_cwt(di, _np.arange(1,w))
+        #index_peaks = _find_peaks(di)
         _plot_2d_df(div,yfactor = 1e6)
         print(index_peaks)
         _plt.plot(v[index_peaks],di[index_peaks]*1e6,'or')
-        return (v[index_peaks[0]],di[index_peaks[0]])
+        return (v[index_peaks[-1]],di[index_peaks[-1]])
 
     def _avg_differential(self,xy):
         x = xy.iloc[:,0].to_numpy()
